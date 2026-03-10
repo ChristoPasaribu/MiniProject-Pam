@@ -138,7 +138,7 @@ fun Application.configureRouting() {
                     articleService.getThumbnail(call)
                 }
             }
-            
+
 
             // Route Comment
             route("/comments") {

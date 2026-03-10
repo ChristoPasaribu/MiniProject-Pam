@@ -179,6 +179,25 @@ Content-Type: application/json
 DELETE {{baseUrl}}/articles/{{articleId}}
 Authorization: Bearer {{authToken}}
 
+
+
+### Upload Thumbnail Article
+PUT {{baseUrl}}/articles/0ad213ab-a51d-4ef6-81ca-47e2d3a5d5bc/thumbnail
+Authorization: Bearer {{authToken}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="thumbnail"; filename="image.jpg"
+Content-Type: image/jpg
+
+< ./image.jpg
+--boundary--
+
+###
+
+### Get Thumbnail Article
+GET {{baseUrl}}/images/articles/{{articleId}}
+
 ### =====================
 ### COMMENT
 ### =====================

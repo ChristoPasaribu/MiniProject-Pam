@@ -4,15 +4,16 @@ import io.ktor.http.content.PartData
 import io.ktor.http.content.forEachPart
 import io.ktor.http.content.streamProvider
 import io.ktor.server.application.*
+import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import org.delcom.data.AppException
 import org.delcom.data.ArticleRequest
 import org.delcom.data.DataResponse
-import org.delcom.helpers.JWTConstants
 import org.delcom.helpers.ValidatorHelper
 import org.delcom.repositories.IArticleRepository
+import java.io.File
 
 class ArticleService(private val articleRepository: IArticleRepository) {
 
@@ -131,12 +132,12 @@ class ArticleService(private val articleRepository: IArticleRepository) {
             ?: throw AppException(404, "Artikel tidak ditemukan")
 
         val multipart = call.receiveMultipart()
-        var fileName: String? = null
+        val filePathHolder = arrayOfNulls<String>(1)  // ← pakai array sebagai holder
 
         multipart.forEachPart { part ->
             if (part is PartData.FileItem) {
                 val ext = part.originalFileName?.substringAfterLast(".") ?: "jpg"
-                fileName = "${id}.${ext}"
+                val fileName = "${id}.${ext}"
                 val file = File("uploads/articles/$fileName")
                 file.parentFile?.mkdirs()
                 part.streamProvider().use { input ->
@@ -144,13 +145,14 @@ class ArticleService(private val articleRepository: IArticleRepository) {
                         input.copyTo(output)
                     }
                 }
+                filePathHolder[0] = "uploads/articles/$fileName"  // ← assign ke array
             }
             part.dispose()
         }
 
-        if (fileName == null) throw AppException(400, "Gambar tidak boleh kosong")
+        val filePath = filePathHolder[0]
+            ?: throw AppException(400, "Gambar tidak boleh kosong")
 
-        val filePath = "uploads/articles/$fileName"
         articleRepository.updateThumbnail(id, filePath)
 
         val response = DataResponse(
@@ -176,6 +178,4 @@ class ArticleService(private val articleRepository: IArticleRepository) {
 
         call.respondFile(file)
     }
-
-
 }
