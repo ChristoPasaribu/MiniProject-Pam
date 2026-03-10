@@ -1,182 +1,224 @@
-## Global Variabel
-#@BaseUrl = https://pam-2026-p5-ifs18005-be.delcom.org:8080
-@BaseUrl = http://127.0.0.1:8000
+### Base URL
+@baseUrl = https://projectmini.ayam.blog:8080
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJkZWxjb20tdXNlciIsImlzcyI6ImRlbGNvbS1hcHAiLCJ1c2VySWQiOiJlNTNmMmNmZi01NmUzLTQ0MjktOWVhYy0wZWRlYTcyYmNlZWEiLCJleHAiOjE3NzMxMjcxODd9.Iv9lWz6oH5UxTI0HNFa_Yyo2e7zaeH_05Y8sF011oxQ
+@refreshToken = eb4a5356-a4ea-43fb-bbbd-d7a0ea6f7cc3
 
-### ---------------------------------------
-## Auth
-### ---------------------------------------
+### =====================
+### AUTH
+### =====================
 
-### Melakukan pendaftaran
-# @name PostRegister
-POST {{BaseUrl}}/auth/register
+### Register
+POST {{baseUrl}}/auth/register
 Content-Type: application/json
 
 {
-  "name": "Tester",
-  "username": "tester",
-  "password": "tester"
+  "name": "Admin Blog",
+  "username": "adminblog",
+  "password": "password123",
+  "newPassword": ""
 }
 
-### Masuk ke layanan
-# @name PostLogin
-POST {{BaseUrl}}/auth/login
+###
+
+### Login
+POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "username": "tester",
-  "password": "tester"
+  "username": "adminblog",
+  "password": "password123"
 }
 
-> {%
-    client.global.set("authToken", response.body.data.authToken);
-    client.global.set("refreshToken", response.body.data.refreshToken);
-%}
+###
 
-### Keluar dari layanan (skip run)
-# @name PostLogout
-POST {{BaseUrl}}/auth/logout
+### Refresh Token
+POST {{baseUrl}}/auth/refresh-token
 Content-Type: application/json
 
 {
+  "refreshToken": "{{refreshToken}}",
   "authToken": "{{authToken}}"
 }
 
-### Masuk ke layanan
-# @name PostRefreshToken
-POST {{BaseUrl}}/auth/refresh-token
+###
+
+### Logout
+POST {{baseUrl}}/auth/logout
 Content-Type: application/json
 
 {
-  "authToken": "{{authToken}}",
-  "refreshToken": "{{refreshToken}}"
+  "refreshToken": "{{refreshToken}}",
+  "authToken": "{{authToken}}"
 }
 
-> {%
-    client.global.set("authToken", response.body.data.authToken);
-    client.global.set("refreshToken", response.body.data.refreshToken);
-%}
+### =====================
+### USER
+### =====================
 
-### ---------------------------------------
-## Users
-### ---------------------------------------
-
-### Mengambil informasi akun
-# @name GetUserMe
-GET {{BaseUrl}}/users/me
+### Get Me
+GET {{baseUrl}}/users/me
 Authorization: Bearer {{authToken}}
-Content-Type: application/json
 
-> {%
-    client.global.set("userId", response.body.data.user.id);
-%}
+###
 
-### Mengubah informasi akun
-# @name PutUserMe
-PUT {{BaseUrl}}/users/me
+### Update Me
+PUT {{baseUrl}}/users/me
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
 {
-  "name": "Tester Update",
-  "username": "tester"
+  "name": "Admin Blog Updated",
+  "username": "adminblog",
+  "password": "password123",
+  "newPassword": "newpassword123"
 }
 
-### Mengubah kata sandi akun
-# @name PutUserMePassword
-PUT {{BaseUrl}}/users/me/password
+###
+
+### Delete Me
+DELETE {{baseUrl}}/users/me
+Authorization: Bearer {{authToken}}
+
+### =====================
+### CATEGORY
+### =====================
+
+### Get All Categories
+GET {{baseUrl}}/categories
+Authorization: Bearer {{authToken}}
+
+###
+
+### Get Category By Id
+GET {{baseUrl}}/categories/{{categoryId}}
+Authorization: Bearer {{authToken}}
+
+###
+
+### Create Category
+POST {{baseUrl}}/categories
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
 {
-  "newPassword": "tester",
-  "password": "tester"
+  "name": "Technology",
+  "description": "Artikel seputar teknologi"
 }
 
-### Mengubah photo profile
-# @name PutUserMePhoto
-PUT {{BaseUrl}}/users/me/photo
-Authorization: Bearer {{authToken}}
-Content-Type: multipart/form-data; boundary=WebAppBoundary
+###
 
---WebAppBoundary
-Content-Disposition: form-data; name="file"; filename="example.png"
-Content-Type: image/png
-
-< ./uploads/examples/me.png
---WebAppBoundary--
-
-### Mengambil data tumbuhan berdasarkan id-nya
-@userId = 00ed9d33-61b0-48b7-a32a-6510af028731
-
-# @name GetMyPhoto
-GET {{BaseUrl}}/images/users/{{userId}}
-Authorization: Bearer {{authToken}}
-Content-Type: application/json
-
-### ---------------------------------------
-## Todos
-### ---------------------------------------
-
-### Mengambil semua data todo user saat ini
-# @name GetTodos
-GET {{BaseUrl}}/todos?search=
-Authorization: Bearer {{authToken}}
-Content-Type: application/json
-
-### Menambahkan todo
-# @name PostTodos
-POST {{BaseUrl}}/todos
+### Update Category
+PUT {{baseUrl}}/categories/{{categoryId}}
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
 {
-  "title": "Judul Todo",
-  "description": "Deskripsi Todo"
+  "name": "Technology Updated",
+  "description": "Artikel seputar teknologi terbaru"
 }
 
-> {%
-    client.global.set("todoId", response.body.data.todoId);
-%}
+###
 
-### Mengambil todo dengan id
-# @name GetTodoById
-GET {{BaseUrl}}/todos/{{todoId}}
+### Delete Category
+DELETE {{baseUrl}}/categories/{{categoryId}}
 Authorization: Bearer {{authToken}}
-Content-Type: application/json
 
-### Mengubah todo
-# @name PutTodo
-PUT {{BaseUrl}}/todos/{{todoId}}
+### =====================
+### ARTICLE
+### =====================
+
+### Get All Articles
+GET {{baseUrl}}/articles
+Authorization: Bearer {{authToken}}
+
+###
+
+### Get Article By Id
+GET {{baseUrl}}/articles/{{articleId}}
+Authorization: Bearer {{authToken}}
+
+###
+
+### Get Articles By Category
+GET {{baseUrl}}/articles/category/{{categoryId}}
+Authorization: Bearer {{authToken}}
+
+###
+
+### Create Article
+POST {{baseUrl}}/articles
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
 {
-  "title": "Judul Todo",
-  "description": "Deskripsi Todo",
-  "isDone": true
+  "title": "Mengenal Kotlin Ktor",
+  "content": "Ktor adalah framework Kotlin untuk membangun aplikasi backend...",
+  "thumbnail": null,
+  "isPublished": true,
+  "categoryId": "6e5dded1-8a13-4446-8fcd-c9b66c7a1d00"
 }
 
-### Mengubah cover todo
-# @name PutTodoCover
-PUT {{BaseUrl}}/todos/{{todoId}}/cover
-Authorization: Bearer {{authToken}}
-Content-Type: multipart/form-data; boundary=WebAppBoundary
+###
 
---WebAppBoundary
-Content-Disposition: form-data; name="file"; filename="example.png"
-Content-Type: image/png
-
-< ./uploads/examples/me.png
---WebAppBoundary--
-
-### Mengambil cover todo
-# @name GetTodoCover
-GET {{BaseUrl}}/images/todos/{{todoId}}
+### Update Article
+PUT {{baseUrl}}/articles/{{articleId}}
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
 
-### Menghapus todo
-# @name DeleteTodo
-DELETE {{BaseUrl}}/todos/{{todoId}}
+{
+  "title": "Mengenal Kotlin Ktor - Updated",
+  "content": "Ktor adalah framework modern untuk backend Kotlin...",
+  "thumbnail": null,
+  "isPublished": true,
+  "categoryId": "{{categoryId}}"
+}
+
+###
+
+### Delete Article
+DELETE {{baseUrl}}/articles/{{articleId}}
+Authorization: Bearer {{authToken}}
+
+### =====================
+### COMMENT
+### =====================
+
+### Get Comments By Article
+GET {{baseUrl}}/comments/article/{{articleId}}
+Authorization: Bearer {{authToken}}
+
+###
+
+### Get Comment By Id
+GET {{baseUrl}}/comments/{{commentId}}
+Authorization: Bearer {{authToken}}
+
+###
+
+### Create Comment
+POST {{baseUrl}}/comments
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
+
+{
+  "content": "Artikel yang sangat informatif!",
+  "articleId": "{{articleId}}"
+}
+
+###
+
+### Update Comment
+PUT {{baseUrl}}/comments/{{commentId}}
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "content": "Artikel yang sangat informatif dan bermanfaat!",
+  "articleId": "{{articleId}}"
+}
+
+###
+
+### Delete Comment
+DELETE {{baseUrl}}/comments/{{commentId}}
+Authorization: Bearer {{authToken}}
