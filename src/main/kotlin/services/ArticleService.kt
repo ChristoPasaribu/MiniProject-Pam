@@ -1,5 +1,8 @@
 package org.delcom.services
 
+import io.ktor.http.content.PartData
+import io.ktor.http.content.forEachPart
+import io.ktor.http.content.streamProvider
 import io.ktor.server.application.*
 import io.ktor.server.auth.principal
 import io.ktor.server.request.*
@@ -119,4 +122,60 @@ class ArticleService(private val articleRepository: IArticleRepository) {
         )
         call.respond(response)
     }
+
+    suspend fun uploadThumbnail(call: ApplicationCall) {
+        val id = call.parameters["id"]
+            ?: throw AppException(400, "Id tidak boleh kosong")
+
+        articleRepository.getById(id)
+            ?: throw AppException(404, "Artikel tidak ditemukan")
+
+        val multipart = call.receiveMultipart()
+        var fileName: String? = null
+
+        multipart.forEachPart { part ->
+            if (part is PartData.FileItem) {
+                val ext = part.originalFileName?.substringAfterLast(".") ?: "jpg"
+                fileName = "${id}.${ext}"
+                val file = File("uploads/articles/$fileName")
+                file.parentFile?.mkdirs()
+                part.streamProvider().use { input ->
+                    file.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+            }
+            part.dispose()
+        }
+
+        if (fileName == null) throw AppException(400, "Gambar tidak boleh kosong")
+
+        val filePath = "uploads/articles/$fileName"
+        articleRepository.updateThumbnail(id, filePath)
+
+        val response = DataResponse(
+            "success",
+            "Berhasil mengupload thumbnail",
+            mapOf("thumbnail" to filePath)
+        )
+        call.respond(response)
+    }
+
+    suspend fun getThumbnail(call: ApplicationCall) {
+        val id = call.parameters["id"]
+            ?: throw AppException(400, "Id tidak boleh kosong")
+
+        val article = articleRepository.getById(id)
+            ?: throw AppException(404, "Artikel tidak ditemukan")
+
+        val filePath = article.thumbnail
+            ?: throw AppException(404, "Thumbnail tidak ditemukan")
+
+        val file = File(filePath)
+        if (!file.exists()) throw AppException(404, "File tidak ditemukan")
+
+        call.respondFile(file)
+    }
+
+
 }

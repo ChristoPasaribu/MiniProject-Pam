@@ -9,4 +9,5 @@ interface IArticleRepository {
     suspend fun create(article: Article): String
     suspend fun update(id: String, newArticle: Article): Boolean
     suspend fun delete(id: String): Boolean
+    suspend fun updateThumbnail(id: String, thumbnail: String): Boolean  // ← tambah ini
 }

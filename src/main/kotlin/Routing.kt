@@ -127,7 +127,18 @@ fun Application.configureRouting() {
                 delete("/{id}") {
                     articleService.delete(call)
                 }
+                put("/{id}/thumbnail") {          // ← upload thumbnail
+                    articleService.uploadThumbnail(call)
+                }
             }
+
+            // Route Images (public, tanpa auth)
+            route("/images") {
+                get("/articles/{id}") {           // ← ambil thumbnail
+                    articleService.getThumbnail(call)
+                }
+            }
+            
 
             // Route Comment
             route("/comments") {

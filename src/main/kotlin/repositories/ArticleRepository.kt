@@ -1,5 +1,6 @@
 package org.delcom.repositories
 
+import kotlinx.datetime.Clock
 import org.delcom.dao.ArticleDao
 import org.delcom.dao.CategoryDao
 import org.delcom.dao.UserDao
@@ -10,6 +11,7 @@ import org.delcom.tables.ArticleTable
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.deleteWhere
 import java.util.UUID
+
 
 class ArticleRepository : IArticleRepository {
 
@@ -69,5 +71,20 @@ class ArticleRepository : IArticleRepository {
             ArticleTable.id eq UUID.fromString(id)
         }
         rowsDeleted >= 1
+    }
+
+    override suspend fun updateThumbnail(id: String, thumbnail: String): Boolean = suspendTransaction {
+        val articleDao = ArticleDao
+            .find { ArticleTable.id eq UUID.fromString(id) }
+            .limit(1)
+            .firstOrNull()
+
+        if (articleDao != null) {
+            articleDao.thumbnail = thumbnail
+            articleDao.updatedAt = Clock.System.now()
+            true
+        } else {
+            false
+        }
     }
 }
