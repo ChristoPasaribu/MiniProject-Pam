@@ -1,216 +1,93 @@
 package org.delcom.services
 
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.content.*
 import io.ktor.server.application.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.auth.principal
 import io.ktor.server.request.*
 import io.ktor.server.response.*
-import io.ktor.util.cio.*
-import io.ktor.utils.io.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import org.delcom.data.AppException
 import org.delcom.data.AuthRequest
 import org.delcom.data.DataResponse
 import org.delcom.data.UserResponse
-import org.delcom.helpers.ServiceHelper
 import org.delcom.helpers.ValidatorHelper
 import org.delcom.helpers.hashPassword
 import org.delcom.helpers.verifyPassword
-import org.delcom.repositories.IRefreshTokenRepository
 import org.delcom.repositories.IUserRepository
-import java.io.File
-import java.util.*
 
-class UserService(
-    private val userRepo: IUserRepository,
-    private val refreshTokenRepo: IRefreshTokenRepository,
-) {
-    // Mengambil data user yang login saat ini
-    suspend fun getMe(call: ApplicationCall) {
-        val user = ServiceHelper.getAuthUser(call, userRepo)
+class UserService(private val userRepository: IUserRepository) {
+
+    suspend fun getById(call: ApplicationCall) {
+        // ambil userId dari JWT
+        val userId = call.principal<JWTPrincipal>()
+            ?.payload?.getClaim("userId")?.asString()
+            ?: throw AppException(401, "Token tidak valid")
+
+        val user = userRepository.getById(userId)
+            ?: throw AppException(404, "User tidak ditemukan")
 
         val response = DataResponse(
             "success",
-            "Berhasil mengambil informasi akun saya",
-            mapOf(
-                "user" to UserResponse(
-                    id = user.id,
-                    name = user.name,
-                    username = user.username,
-                    createdAt = user.createdAt,
-                    updatedAt = user.updatedAt,
-                ),
-            )
+            "Berhasil mengambil data user",
+            UserResponse.fromEntity(user)
         )
         call.respond(response)
     }
 
-    // Mengubah data saya
-    suspend fun putMe(call: ApplicationCall) {
-        val user = ServiceHelper.getAuthUser(call, userRepo)
+    suspend fun update(call: ApplicationCall) {
+        // ambil userId dari JWT
+        val userId = call.principal<JWTPrincipal>()
+            ?.payload?.getClaim("userId")?.asString()
+            ?: throw AppException(401, "Token tidak valid")
 
-        // Ambil data request
+        val existing = userRepository.getById(userId)
+            ?: throw AppException(404, "User tidak ditemukan")
+
         val request = call.receive<AuthRequest>()
 
-        // Validasi request
         val validator = ValidatorHelper(request.toMap())
         validator.required("name", "Nama tidak boleh kosong")
         validator.required("username", "Username tidak boleh kosong")
+        validator.required("password", "Password tidak boleh kosong")
         validator.validate()
 
-        // periksa user dengan username
-        val existUser = userRepo.getByUsername(request.username)
-        if (existUser != null && existUser.username != user.username) {
-            throw AppException(
-                409,
-                "Akun dengan username ini sudah terdaftar!"
-            )
-        }
+        if (!verifyPassword(request.password, existing.password))
+            throw AppException(400, "Password tidak valid")
 
-        user.username = request.username
-        user.name = request.name
-        val isUpdated = userRepo.update(
-            user.id,
-            user
+        val updatedUser = existing.copy(
+            name = request.name,
+            username = request.username,
+            password = if (request.newPassword.isNotEmpty())
+                hashPassword(request.newPassword)
+            else existing.password,
         )
-        if (!isUpdated) {
-            throw AppException(400, "Gagal memperbarui data profile!")
-        }
+
+        userRepository.update(userId, updatedUser)
 
         val response = DataResponse(
             "success",
-            "Berhasil mengubah data profile",
-            null
+            "Berhasil mengupdate user",
+            UserResponse.fromEntity(updatedUser)
         )
         call.respond(response)
     }
 
-    // mengubah photo profile
-    suspend fun putMyPhoto(call: ApplicationCall) {
-        val user = ServiceHelper.getAuthUser(call, userRepo)
+    suspend fun delete(call: ApplicationCall) {
+        // ambil userId dari JWT
+        val userId = call.principal<JWTPrincipal>()
+            ?.payload?.getClaim("userId")?.asString()
+            ?: throw AppException(401, "Token tidak valid")
 
-        var newPhoto: String? = null
-        val multipartData = call.receiveMultipart(formFieldLimit = 1024 * 1024 * 5)
-        multipartData.forEachPart { part ->
-            when (part) {
-                // Upload file
-                is PartData.FileItem -> {
-                    val ext = part.originalFileName
-                        ?.substringAfterLast('.', "")
-                        ?.let { if (it.isNotEmpty()) ".$it" else "" }
-                        ?: ""
+        userRepository.getById(userId)
+            ?: throw AppException(404, "User tidak ditemukan")
 
-                    val fileName = UUID.randomUUID().toString() + ext
-                    val filePath = "uploads/users/$fileName"
-
-                    withContext(Dispatchers.IO) {
-                        val file = File(filePath)
-                        file.parentFile.mkdirs() // pastikan folder ada
-
-                        part.provider().copyAndClose(file.writeChannel())
-                        newPhoto = filePath
-                    }
-                }
-
-                else -> {}
-            }
-
-            part.dispose()
-        }
-
-        if(newPhoto == null){
-            throw AppException(404, "Photo profile tidak tersedia!")
-        }
-
-        val newFile = File(newPhoto)
-        // Cek apakah gambar berhasil diunggah
-        if (!newFile.exists()) {
-            throw AppException(404, "Photo profile gagal diunggah!")
-        }
-
-        val oldPhoto = user.photo
-        user.photo = newPhoto
-
-        val isUpdated = userRepo.update(
-            user.id,
-            user
-        )
-        if (!isUpdated) {
-            throw AppException(400, "Gagal memperbarui photo profile!")
-        }
-
-        // Hapus photo profile lama
-        if(oldPhoto != null){
-            val oldFile = File(oldPhoto)
-            if(oldFile.exists()){
-                oldFile.delete()
-            }
-        }
+        val deleted = userRepository.delete(userId)
+        if (!deleted) throw AppException(500, "Gagal menghapus user")
 
         val response = DataResponse(
             "success",
-            "Berhasil mengubah photo profile",
+            "Berhasil menghapus user",
             null
         )
         call.respond(response)
-    }
-
-    // Mengubah data saya
-    suspend fun putMyPassword(call: ApplicationCall) {
-        val user = ServiceHelper.getAuthUser(call, userRepo)
-
-        // Ambil data request
-        val request = call.receive<AuthRequest>()
-
-        // Validasi request
-        val validator = ValidatorHelper(request.toMap())
-        validator.required("newPassword", "Kata sandi baru tidak boleh kosong")
-        validator.required("password", "Kata sandi lama tidak boleh kosong")
-        validator.validate()
-
-        val validPassword = verifyPassword(request.password, user.password)
-        if (!validPassword) {
-            throw AppException(404, "Kata sandi lama tidak valid!")
-        }
-
-        // buat password baru
-        user.password = hashPassword(request.newPassword)
-        val isUpdated = userRepo.update(
-            user.id,
-            user
-        )
-        if (!isUpdated) {
-            throw AppException(400, "Gagal mengubah kata sandi!")
-        }
-
-        // Hapus semua token
-        refreshTokenRepo.deleteByUserId(user.id)
-
-        val response = DataResponse(
-            "success",
-            "Berhasil mengubah kata sandi",
-            null
-        )
-        call.respond(response)
-    }
-
-    // Mengambil photo
-    suspend fun getPhoto(call: ApplicationCall) {
-        val userId = call.parameters["id"]
-            ?: throw AppException(400, "Data todo tidak valid!")
-
-        val user = userRepo.getById(userId) ?: throw AppException(400, "User not found!")
-
-        if(user.photo == null){
-            throw AppException(404, "User belum memiliki photo profile")
-        }
-
-        val file = File(user.photo!!)
-        if (!file.exists()) {
-            throw AppException(404, "Photo profile tidak tersedia")
-        }
-
-        call.respondFile(file)
     }
 }

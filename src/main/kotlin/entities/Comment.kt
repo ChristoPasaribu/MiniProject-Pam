@@ -6,12 +6,11 @@ import kotlinx.serialization.Serializable
 import java.util.UUID
 
 @Serializable
-data class User(
+data class Comment(
     var id: String = UUID.randomUUID().toString(),
-    var name: String = "",
-    var username: String = "",
-    var password: String = "",
-    var photo: String? = null,
+    var content: String = "",
+    var articleId: String = "",
+    var authorId: String = "",
     var createdAt: Instant = Clock.System.now(),
     var updatedAt: Instant = Clock.System.now(),
 )
