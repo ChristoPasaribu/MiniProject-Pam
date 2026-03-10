@@ -1,93 +1,152 @@
-package org.delcom.services
+package org.delcom
 
+import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.*
-import io.ktor.server.auth.jwt.*
-import io.ktor.server.auth.principal
-import io.ktor.server.request.*
+import io.ktor.server.auth.authenticate
+import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.*
+import io.ktor.server.routing.*
 import org.delcom.data.AppException
-import org.delcom.data.AuthRequest
-import org.delcom.data.DataResponse
-import org.delcom.data.UserResponse
-import org.delcom.helpers.ValidatorHelper
-import org.delcom.helpers.hashPassword
-import org.delcom.helpers.verifyPassword
-import org.delcom.repositories.IUserRepository
+import org.delcom.data.ErrorResponse
+import org.delcom.helpers.JWTConstants
+import org.delcom.helpers.parseMessageToMap
+import org.delcom.services.AuthService
+import org.delcom.services.UserService
+import org.delcom.services.CategoryService
+import org.delcom.services.ArticleService
+import org.delcom.services.CommentService
+import org.koin.ktor.ext.inject
 
-class UserService(private val userRepository: IUserRepository) {
+fun Application.configureRouting() {
+    val authService: AuthService by inject()
+    val userService: UserService by inject()
+    val categoryService: CategoryService by inject()
+    val articleService: ArticleService by inject()
+    val commentService: CommentService by inject()
 
-    suspend fun getById(call: ApplicationCall) {
-        // ambil userId dari JWT
-        val userId = call.principal<JWTPrincipal>()
-            ?.payload?.getClaim("userId")?.asString()
-            ?: throw AppException(401, "Token tidak valid")
+    install(StatusPages) {
+        // Tangkap AppException
+        exception<AppException> { call, cause ->
+            val dataMap: Map<String, List<String>> = parseMessageToMap(cause.message)
 
-        val user = userRepository.getById(userId)
-            ?: throw AppException(404, "User tidak ditemukan")
+            call.respond(
+                status = HttpStatusCode.fromValue(cause.code),
+                message = ErrorResponse(
+                    status = "fail",
+                    message = if (dataMap.isEmpty()) cause.message else "Data yang dikirimkan tidak valid!",
+                    data = if (dataMap.isEmpty()) null else dataMap.toString()
+                )
+            )
+        }
 
-        val response = DataResponse(
-            "success",
-            "Berhasil mengambil data user",
-            UserResponse.fromEntity(user)
-        )
-        call.respond(response)
+        // Tangkap semua Throwable lainnya
+        exception<Throwable> { call, cause ->
+            call.respond(
+                status = HttpStatusCode.fromValue(500),
+                message = ErrorResponse(
+                    status = "error",
+                    message = cause.message ?: "Unknown error",
+                    data = ""
+                )
+            )
+        }
     }
 
-    suspend fun update(call: ApplicationCall) {
-        // ambil userId dari JWT
-        val userId = call.principal<JWTPrincipal>()
-            ?.payload?.getClaim("userId")?.asString()
-            ?: throw AppException(401, "Token tidak valid")
+    routing {
+        get("/") {
+            call.respondText("Blog API telah berjalan.")
+        }
 
-        val existing = userRepository.getById(userId)
-            ?: throw AppException(404, "User tidak ditemukan")
+        // Route Auth
+        route("/auth") {
+            post("/register") {
+                authService.postRegister(call)
+            }
+            post("/login") {
+                authService.postLogin(call)
+            }
+            post("/refresh-token") {
+                authService.postRefreshToken(call)
+            }
+            post("/logout") {
+                authService.postLogout(call)
+            }
+        }
 
-        val request = call.receive<AuthRequest>()
+        authenticate(JWTConstants.NAME) {
 
-        val validator = ValidatorHelper(request.toMap())
-        validator.required("name", "Nama tidak boleh kosong")
-        validator.required("username", "Username tidak boleh kosong")
-        validator.required("password", "Password tidak boleh kosong")
-        validator.validate()
+            // Route User
+            route("/users") {
+                get("/me") {
+                    userService.getById(call)
+                }
+                put("/me") {
+                    userService.update(call)
+                }
+                delete("/me") {
+                    userService.delete(call)
+                }
+            }
 
-        if (!verifyPassword(request.password, existing.password))
-            throw AppException(400, "Password tidak valid")
+            // Route Category
+            route("/categories") {
+                get {
+                    categoryService.getAll(call)
+                }
+                post {
+                    categoryService.create(call)
+                }
+                get("/{id}") {
+                    categoryService.getById(call)
+                }
+                put("/{id}") {
+                    categoryService.update(call)
+                }
+                delete("/{id}") {
+                    categoryService.delete(call)
+                }
+            }
 
-        val updatedUser = existing.copy(
-            name = request.name,
-            username = request.username,
-            password = if (request.newPassword.isNotEmpty())
-                hashPassword(request.newPassword)
-            else existing.password,
-        )
+            // Route Article
+            route("/articles") {
+                get {
+                    articleService.getAll(call)
+                }
+                post {
+                    articleService.create(call)
+                }
+                get("/{id}") {
+                    articleService.getById(call)
+                }
+                get("/category/{categoryId}") {
+                    articleService.getByCategory(call)
+                }
+                put("/{id}") {
+                    articleService.update(call)
+                }
+                delete("/{id}") {
+                    articleService.delete(call)
+                }
+            }
 
-        userRepository.update(userId, updatedUser)
-
-        val response = DataResponse(
-            "success",
-            "Berhasil mengupdate user",
-            UserResponse.fromEntity(updatedUser)
-        )
-        call.respond(response)
-    }
-
-    suspend fun delete(call: ApplicationCall) {
-        // ambil userId dari JWT
-        val userId = call.principal<JWTPrincipal>()
-            ?.payload?.getClaim("userId")?.asString()
-            ?: throw AppException(401, "Token tidak valid")
-
-        userRepository.getById(userId)
-            ?: throw AppException(404, "User tidak ditemukan")
-
-        val deleted = userRepository.delete(userId)
-        if (!deleted) throw AppException(500, "Gagal menghapus user")
-
-        val response = DataResponse(
-            "success",
-            "Berhasil menghapus user",
-            null
-        )
-        call.respond(response)
+            // Route Comment
+            route("/comments") {
+                get("/article/{articleId}") {
+                    commentService.getByArticle(call)
+                }
+                post {
+                    commentService.create(call)
+                }
+                get("/{id}") {
+                    commentService.getById(call)
+                }
+                put("/{id}") {
+                    commentService.update(call)
+                }
+                delete("/{id}") {
+                    commentService.delete(call)
+                }
+            }
+        }
     }
 }
