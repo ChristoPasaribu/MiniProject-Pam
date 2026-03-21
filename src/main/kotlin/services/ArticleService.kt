@@ -18,11 +18,38 @@ import java.io.File
 class ArticleService(private val articleRepository: IArticleRepository) {
 
     suspend fun getAll(call: ApplicationCall) {
-        val articles = articleRepository.getAll()
+        // Query params untuk search, filter, dan pagination
+        val search     = call.request.queryParameters["search"]?.trim()?.takeIf { it.isNotBlank() }
+        val categoryId = call.request.queryParameters["categoryId"]?.trim()?.takeIf { it.isNotBlank() }
+        val isPublished = call.request.queryParameters["isPublished"]?.toBooleanStrictOrNull()
+        val page       = call.request.queryParameters["page"]?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+        val perPage    = call.request.queryParameters["perPage"]?.toIntOrNull()
+            ?.coerceIn(1, 100) ?: 10
+
+        val (articles, total) = articleRepository.getAll(
+            search = search,
+            categoryId = categoryId,
+            isPublished = isPublished,
+            page = page,
+            perPage = perPage,
+        )
+
+        val totalPages = if (total == 0L) 1 else ((total + perPage - 1) / perPage).toInt()
+
         val response = DataResponse(
-            "success",
-            "Berhasil mengambil data artikel",
-            articles
+            status = "success",
+            message = "Berhasil mengambil data artikel",
+            data = mapOf(
+                "articles"   to articles,
+                "pagination" to mapOf(
+                    "page"       to page,
+                    "perPage"    to perPage,
+                    "total"      to total,
+                    "totalPages" to totalPages,
+                    "hasNext"    to (page < totalPages),
+                    "hasPrev"    to (page > 1),
+                )
+            )
         )
         call.respond(response)
     }
@@ -64,8 +91,7 @@ class ArticleService(private val articleRepository: IArticleRepository) {
         validator.required("categoryId", "Kategori tidak boleh kosong")
         validator.validate()
 
-        // ambil userId dari JWT
-        val authorId = call.principal<io.ktor.server.auth.jwt.JWTPrincipal>()
+        val authorId = call.principal<JWTPrincipal>()
             ?.payload?.getClaim("userId")?.asString()
             ?: throw AppException(401, "Token tidak valid")
 
@@ -132,7 +158,7 @@ class ArticleService(private val articleRepository: IArticleRepository) {
             ?: throw AppException(404, "Artikel tidak ditemukan")
 
         val multipart = call.receiveMultipart()
-        val filePathHolder = arrayOfNulls<String>(1)  // ← pakai array sebagai holder
+        val filePathHolder = arrayOfNulls<String>(1)
 
         multipart.forEachPart { part ->
             if (part is PartData.FileItem) {
@@ -145,7 +171,7 @@ class ArticleService(private val articleRepository: IArticleRepository) {
                         input.copyTo(output)
                     }
                 }
-                filePathHolder[0] = "uploads/articles/$fileName"  // ← assign ke array
+                filePathHolder[0] = "uploads/articles/$fileName"
             }
             part.dispose()
         }

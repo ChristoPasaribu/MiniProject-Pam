@@ -8,15 +8,57 @@ import org.delcom.entities.Article
 import org.delcom.helpers.articleDaoToModel
 import org.delcom.helpers.suspendTransaction
 import org.delcom.tables.ArticleTable
+import org.jetbrains.exposed.sql.Op
+import org.jetbrains.exposed.sql.OrOp
+import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
+import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
+import org.jetbrains.exposed.sql.lowerCase
 import java.util.UUID
-
 
 class ArticleRepository : IArticleRepository {
 
-    override suspend fun getAll(): List<Article> = suspendTransaction {
-        ArticleDao.all().map(::articleDaoToModel)
+    override suspend fun getAll(
+        search: String?,
+        categoryId: String?,
+        isPublished: Boolean?,
+        page: Int,
+        perPage: Int,
+    ): Pair<List<Article>, Long> = suspendTransaction {
+
+        var condition: Op<Boolean> = Op.TRUE
+
+        // Search: pakai OrOp untuk menggabungkan title OR content
+        if (!search.isNullOrBlank()) {
+            val keyword = "%${search.lowercase()}%"
+            val titleMatch = ArticleTable.title.lowerCase() like keyword
+            val contentMatch = ArticleTable.content.lowerCase() like keyword
+            condition = condition and OrOp(listOf(titleMatch, contentMatch))
+        }
+
+        if (!categoryId.isNullOrBlank()) {
+            condition = condition and (ArticleTable.categoryId eq UUID.fromString(categoryId))
+        }
+
+        if (isPublished != null) {
+            condition = condition and (ArticleTable.isPublished eq isPublished)
+        }
+
+        val total = ArticleDao.find(condition).count()
+
+        val offset = ((page - 1) * perPage).toLong()
+
+        // Gunakan limit(count) dan offset(start) secara terpisah (non-deprecated)
+        val articles = ArticleDao
+            .find(condition)
+            .orderBy(ArticleTable.createdAt to SortOrder.DESC)
+            .limit(perPage)
+            .offset(offset)
+            .map(::articleDaoToModel)
+
+        Pair(articles, total)
     }
 
     override suspend fun getById(id: String): Article? = suspendTransaction {

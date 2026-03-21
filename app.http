@@ -1,7 +1,7 @@
 ### Base URL
 @baseUrl = https://projectmini.ayam.blog:8080
-@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJkZWxjb20tdXNlciIsImlzcyI6ImRlbGNvbS1hcHAiLCJ1c2VySWQiOiJlNTNmMmNmZi01NmUzLTQ0MjktOWVhYy0wZWRlYTcyYmNlZWEiLCJleHAiOjE3NzMxMjcxODd9.Iv9lWz6oH5UxTI0HNFa_Yyo2e7zaeH_05Y8sF011oxQ
-@refreshToken = eb4a5356-a4ea-43fb-bbbd-d7a0ea6f7cc3
+@authToken = eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJkZWxjb20tdXNlciIsImlzcyI6ImRlbGNvbS1hcHAiLCJ1c2VySWQiOiJiODJhYmNhOC1lYTk4LTQ1NTgtYjQ4OC1jNDA4NGI5NTFkYzUiLCJleHAiOjE3NzQwMjU0MjB9.jUSzw2GpAEbBteMnEQqJ5aHi0VxZinPOIBGGDdUDjec
+@refreshToken = 68e8ea2b-ff12-40a3-9f9a-453d89546799
 
 ### =====================
 ### AUTH
@@ -25,8 +25,8 @@ POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "username": "adminblog",
-  "password": "password123"
+  "username": "test",
+  "password": "test"
 }
 
 ###
@@ -197,7 +197,7 @@ Content-Type: image/jpg
 
 ### Get Thumbnail Article
 GET {{baseUrl}}/images/articles/{{articleId}}
-
+Authorization: Bearer {{authToken}}
 ### =====================
 ### COMMENT
 ### =====================
